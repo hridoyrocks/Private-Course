@@ -262,8 +262,9 @@ watch(() => props.src, () => {
             ref="videoRef"
             :src="src"
             class="w-full h-full"
-            preload="metadata"
+            preload="auto"
             playsinline
+            crossorigin="anonymous"
             @timeupdate="handleTimeUpdate"
             @loadedmetadata="handleLoadedMetadata"
             @progress="handleProgress"
@@ -272,6 +273,7 @@ watch(() => props.src, () => {
             @ended="handleEnded"
             @waiting="handleWaiting"
             @canplay="handleCanPlay"
+            @canplaythrough="isLoading = false"
             @contextmenu.prevent
         />
 

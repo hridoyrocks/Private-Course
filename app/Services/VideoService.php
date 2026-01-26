@@ -58,12 +58,31 @@ class VideoService
         ];
     }
 
-    public function getSignedUrl(Video $video, int $expiresInMinutes = 30): string
+    /**
+     * Get signed URL for video streaming directly from R2
+     * Uses presigned URL for direct R2 access (faster than going through server)
+     */
+    public function getSignedUrl(Video $video, int $expiresInMinutes = 120): string
     {
-        return Storage::disk($this->disk)->temporaryUrl(
-            $video->video_path,
-            now()->addMinutes($expiresInMinutes)
-        );
+        $client = new S3Client([
+            'region' => 'auto',
+            'version' => 'latest',
+            'endpoint' => config('filesystems.disks.r2.endpoint'),
+            'credentials' => [
+                'key' => config('filesystems.disks.r2.key'),
+                'secret' => config('filesystems.disks.r2.secret'),
+            ],
+            'use_path_style_endpoint' => true,
+        ]);
+
+        $command = $client->getCommand('GetObject', [
+            'Bucket' => config('filesystems.disks.r2.bucket'),
+            'Key' => $video->video_path,
+        ]);
+
+        $presignedRequest = $client->createPresignedRequest($command, "+{$expiresInMinutes} minutes");
+
+        return (string) $presignedRequest->getUri();
     }
 
     public function delete(Video $video): bool

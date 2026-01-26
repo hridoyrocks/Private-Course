@@ -45,11 +45,12 @@ class VideoController extends Controller
             ], 403);
         }
 
-        $signedUrl = $this->videoService->getSignedUrl($video, 30);
+        // Get signed URL valid for 2 hours for uninterrupted playback
+        $signedUrl = $this->videoService->getSignedUrl($video, 120);
 
         return response()->json([
             'url' => $signedUrl,
-            'expires_in' => 30 * 60,
+            'expires_in' => 120 * 60, // 2 hours in seconds
         ]);
     }
 }
