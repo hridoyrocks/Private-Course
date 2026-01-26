@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import AdminLayout from '@/layouts/admin/AdminLayout.vue';
-import { Head, useForm, Link } from '@inertiajs/vue3';
-import { ArrowLeft, Video as VideoIcon, RefreshCw, Play, FileVideo } from 'lucide-vue-next';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { ArrowLeft, Video as VideoIcon, RefreshCw, Play, FileVideo, Upload, CheckCircle, AlertCircle } from 'lucide-vue-next';
 import { ref } from 'vue';
+import axios from 'axios';
 
 interface Course {
     id: number;
@@ -26,46 +27,103 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const form = useForm({
+const form = ref({
     title: props.video.title,
     duration: props.video.duration || '',
     order: props.video.order,
     is_active: props.video.is_active,
-    video: null as File | null,
 });
 
+const videoFile = ref<File | null>(null);
 const videoName = ref<string | null>(null);
 const uploadProgress = ref(0);
+const uploadStatus = ref<'idle' | 'uploading' | 'success' | 'error'>('idle');
+const errorMessage = ref('');
+const uploadedPath = ref<string | null>(null);
 const showPreview = ref(false);
+const isSubmitting = ref(false);
 
 const handleVideoChange = (event: Event) => {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
 
     if (file) {
-        form.video = file;
+        videoFile.value = file;
         videoName.value = file.name;
+        uploadStatus.value = 'idle';
+        errorMessage.value = '';
+        uploadedPath.value = null;
     }
 };
 
 const clearVideo = () => {
-    form.video = null;
+    videoFile.value = null;
     videoName.value = null;
+    uploadStatus.value = 'idle';
+    uploadedPath.value = null;
 };
 
 const getFileName = (path: string) => {
     return path.split('/').pop() || path;
 };
 
-const submit = () => {
-    form.post(`/admin/videos/${props.video.id}`, {
-        forceFormData: true,
-        onProgress: (progress) => {
-            if (progress.percentage) {
-                uploadProgress.value = progress.percentage;
-            }
-        },
-    });
+const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const submit = async () => {
+    isSubmitting.value = true;
+    errorMessage.value = '';
+
+    try {
+        // If new video selected, upload it first
+        if (videoFile.value && !uploadedPath.value) {
+            uploadStatus.value = 'uploading';
+            uploadProgress.value = 0;
+
+            // Step 1: Get presigned URL from server
+            const { data } = await axios.post(`/admin/videos/${props.video.id}/upload-url`, {
+                filename: videoFile.value.name,
+                content_type: videoFile.value.type,
+            });
+
+            const { upload_url, path } = data;
+
+            // Step 2: Upload directly to R2
+            await axios.put(upload_url, videoFile.value, {
+                headers: {
+                    'Content-Type': videoFile.value.type,
+                },
+                onUploadProgress: (progressEvent) => {
+                    if (progressEvent.total) {
+                        uploadProgress.value = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+                    }
+                },
+            });
+
+            uploadedPath.value = path;
+            uploadStatus.value = 'success';
+        }
+
+        // Step 3: Update video record
+        router.put(`/admin/videos/${props.video.id}`, {
+            title: form.value.title,
+            video_path: uploadedPath.value || '',
+            duration: form.value.duration,
+            order: form.value.order,
+            is_active: form.value.is_active,
+        });
+
+    } catch (error: any) {
+        uploadStatus.value = 'error';
+        errorMessage.value = error.response?.data?.message || 'Update failed. Please try again.';
+        console.error('Update error:', error);
+        isSubmitting.value = false;
+    }
 };
 </script>
 
@@ -98,7 +156,6 @@ const submit = () => {
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2.5 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                                 required
                             />
-                            <p v-if="form.errors.title" class="mt-1.5 text-sm text-red-600">{{ form.errors.title }}</p>
                         </div>
 
                         <!-- Current Video -->
@@ -147,7 +204,7 @@ const submit = () => {
                             <label class="block text-sm font-medium mb-2">Replace Video (optional)</label>
                             <div
                                 v-if="!videoName"
-                                class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 p-6 cursor-pointer hover:border-red-400"
+                                class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 p-6 cursor-pointer hover:border-red-400 transition-colors"
                                 @click="($refs.videoInput as HTMLInputElement).click()"
                             >
                                 <RefreshCw class="h-8 w-8 text-muted-foreground mb-2" />
@@ -156,22 +213,52 @@ const submit = () => {
                             </div>
                             <div
                                 v-else
-                                class="flex items-center justify-between rounded-lg border border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/20 p-4"
+                                class="rounded-lg border transition-colors"
+                                :class="{
+                                    'border-green-500 bg-green-50 dark:bg-green-900/20': uploadStatus === 'success',
+                                    'border-red-500 bg-red-50 dark:bg-red-900/20': uploadStatus === 'error',
+                                    'border-blue-300 bg-blue-50 dark:bg-blue-900/20': uploadStatus === 'uploading',
+                                    'border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/20': uploadStatus === 'idle',
+                                }"
                             >
-                                <div class="flex items-center gap-3">
-                                    <VideoIcon class="h-8 w-8 text-green-600" />
-                                    <div>
-                                        <p class="text-sm font-medium">{{ videoName }}</p>
-                                        <p class="text-xs text-green-600">New video selected - will replace current</p>
+                                <div class="flex items-center justify-between p-4">
+                                    <div class="flex items-center gap-3">
+                                        <CheckCircle v-if="uploadStatus === 'success'" class="h-8 w-8 text-green-600" />
+                                        <AlertCircle v-else-if="uploadStatus === 'error'" class="h-8 w-8 text-red-600" />
+                                        <Upload v-else-if="uploadStatus === 'uploading'" class="h-8 w-8 text-blue-600 animate-pulse" />
+                                        <VideoIcon v-else class="h-8 w-8 text-green-600" />
+                                        <div>
+                                            <p class="text-sm font-medium">{{ videoName }}</p>
+                                            <p v-if="videoFile" class="text-xs text-muted-foreground">
+                                                {{ formatFileSize(videoFile.size) }}
+                                            </p>
+                                            <p v-if="uploadStatus === 'idle'" class="text-xs text-green-600">New video selected - will replace current</p>
+                                            <p v-if="uploadStatus === 'success'" class="text-xs text-green-600">Upload complete!</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        v-if="uploadStatus !== 'uploading'"
+                                        type="button"
+                                        @click="clearVideo"
+                                        class="text-sm text-red-600 hover:underline"
+                                    >
+                                        Remove
+                                    </button>
+                                </div>
+
+                                <!-- Upload Progress -->
+                                <div v-if="uploadStatus === 'uploading'" class="px-4 pb-4">
+                                    <div class="flex items-center justify-between text-sm mb-2">
+                                        <span>Uploading directly to cloud...</span>
+                                        <span>{{ uploadProgress }}%</span>
+                                    </div>
+                                    <div class="h-3 w-full rounded-full bg-gray-200 dark:bg-gray-600 overflow-hidden">
+                                        <div
+                                            class="h-3 rounded-full bg-blue-600 transition-all duration-300"
+                                            :style="{ width: `${uploadProgress}%` }"
+                                        ></div>
                                     </div>
                                 </div>
-                                <button
-                                    type="button"
-                                    @click="clearVideo"
-                                    class="text-sm text-red-600 hover:underline"
-                                >
-                                    Remove
-                                </button>
                             </div>
                             <input
                                 ref="videoInput"
@@ -179,21 +266,15 @@ const submit = () => {
                                 accept="video/*"
                                 class="hidden"
                                 @change="handleVideoChange"
+                                :disabled="uploadStatus === 'uploading'"
                             />
-                            <p v-if="form.errors.video" class="mt-1.5 text-sm text-red-600">{{ form.errors.video }}</p>
 
-                            <!-- Upload Progress -->
-                            <div v-if="form.processing && uploadProgress > 0 && videoName" class="mt-4">
-                                <div class="flex items-center justify-between text-sm mb-2">
-                                    <span>Uploading...</span>
-                                    <span>{{ uploadProgress }}%</span>
-                                </div>
-                                <div class="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-600">
-                                    <div
-                                        class="h-2 rounded-full bg-red-600 transition-all"
-                                        :style="{ width: `${uploadProgress}%` }"
-                                    ></div>
-                                </div>
+                            <!-- Error Message -->
+                            <div v-if="errorMessage" class="mt-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                                <p class="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+                                    <AlertCircle class="h-4 w-4" />
+                                    {{ errorMessage }}
+                                </p>
                             </div>
                         </div>
 
@@ -236,10 +317,10 @@ const submit = () => {
                     <div class="flex gap-3">
                         <button
                             type="submit"
-                            :disabled="form.processing"
-                            class="rounded-lg bg-red-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                            :disabled="isSubmitting || uploadStatus === 'uploading'"
+                            class="rounded-lg bg-red-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {{ form.processing ? (videoName ? 'Uploading...' : 'Saving...') : 'Update Video' }}
+                            {{ uploadStatus === 'uploading' ? 'Uploading...' : isSubmitting ? 'Saving...' : 'Update Video' }}
                         </button>
                         <Link
                             :href="`/admin/courses/${video.course.id}/edit`"

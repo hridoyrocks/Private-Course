@@ -7,6 +7,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Aws\S3\S3Client;
 
 class VideoService
 {
@@ -20,6 +21,41 @@ class VideoService
         Storage::disk($this->disk)->put($path, file_get_contents($file));
 
         return $path;
+    }
+
+    /**
+     * Generate presigned URL for direct upload to R2
+     */
+    public function getPresignedUploadUrl(int $courseId, string $filename, string $contentType): array
+    {
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        $uniqueFilename = Str::uuid() . '.' . $extension;
+        $path = "videos/course_{$courseId}/{$uniqueFilename}";
+
+        $client = new S3Client([
+            'region' => 'auto',
+            'version' => 'latest',
+            'endpoint' => config('filesystems.disks.r2.endpoint'),
+            'credentials' => [
+                'key' => config('filesystems.disks.r2.key'),
+                'secret' => config('filesystems.disks.r2.secret'),
+            ],
+            'use_path_style_endpoint' => true,
+        ]);
+
+        $command = $client->getCommand('PutObject', [
+            'Bucket' => config('filesystems.disks.r2.bucket'),
+            'Key' => $path,
+            'ContentType' => $contentType,
+        ]);
+
+        $presignedRequest = $client->createPresignedRequest($command, '+60 minutes');
+        $presignedUrl = (string) $presignedRequest->getUri();
+
+        return [
+            'upload_url' => $presignedUrl,
+            'path' => $path,
+        ];
     }
 
     public function getSignedUrl(Video $video, int $expiresInMinutes = 30): string

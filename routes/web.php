@@ -34,8 +34,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Videos
     Route::get('courses/{course}/videos/create', [VideoController::class, 'create'])->name('videos.create');
+    Route::post('courses/{course}/videos/upload-url', [VideoController::class, 'getUploadUrl'])->name('videos.upload-url');
     Route::post('courses/{course}/videos', [VideoController::class, 'store'])->name('videos.store');
     Route::get('videos/{video}/edit', [VideoController::class, 'edit'])->name('videos.edit');
+    Route::post('videos/{video}/upload-url', [VideoController::class, 'getEditUploadUrl'])->name('videos.edit-upload-url');
     Route::put('videos/{video}', [VideoController::class, 'update'])->name('videos.update');
     Route::delete('videos/{video}', [VideoController::class, 'destroy'])->name('videos.destroy');
     Route::post('courses/{course}/videos/reorder', [VideoController::class, 'reorder'])->name('videos.reorder');
