@@ -318,7 +318,7 @@ watch(() => props.src, () => {
         <!-- Loading Overlay -->
         <div
             v-if="isLoading && !hasError"
-            class="absolute inset-0 flex items-center justify-center bg-black/50"
+            class="absolute inset-0 z-30 flex items-center justify-center bg-black/50"
         >
             <div class="text-center">
                 <Loader2 class="h-12 w-12 text-red-500 animate-spin mx-auto" />
@@ -329,7 +329,7 @@ watch(() => props.src, () => {
         <!-- Error Overlay -->
         <div
             v-if="hasError"
-            class="absolute inset-0 flex items-center justify-center bg-black/80"
+            class="absolute inset-0 z-30 flex items-center justify-center bg-black/80"
         >
             <div class="text-center px-4">
                 <div class="w-16 h-16 rounded-full bg-red-600/20 flex items-center justify-center mx-auto mb-4">
@@ -350,7 +350,7 @@ watch(() => props.src, () => {
         <!-- Play/Pause Overlay (Center) -->
         <div
             v-if="!isLoading && !hasError"
-            class="absolute inset-0 flex items-center justify-center cursor-pointer"
+            class="absolute inset-0 z-10 flex items-center justify-center cursor-pointer"
             @click="togglePlay"
         >
             <div
@@ -364,8 +364,9 @@ watch(() => props.src, () => {
         <!-- Controls -->
         <div
             :class="[
-                'absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300',
-                showControls || !isPlaying ? 'opacity-100' : 'opacity-0'
+                'absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 pt-16',
+                showControls || !isPlaying ? 'opacity-100' : 'opacity-0',
+                showControls || !isPlaying ? 'pointer-events-auto' : 'pointer-events-none'
             ]"
         >
             <!-- Progress Bar -->
