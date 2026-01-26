@@ -205,11 +205,12 @@ const showControlsTemporarily = () => {
         clearTimeout(controlsTimeout);
     }
 
-    controlsTimeout = setTimeout(() => {
-        if (isPlaying.value) {
+    // Only auto-hide controls in fullscreen mode
+    if (isFullscreen.value && isPlaying.value) {
+        controlsTimeout = setTimeout(() => {
             showControls.value = false;
-        }
-    }, 3000);
+        }, 3000);
+    }
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
@@ -293,7 +294,7 @@ watch(() => props.src, () => {
         ref="containerRef"
         class="relative bg-black w-full h-full group select-none"
         @mousemove="showControlsTemporarily"
-        @mouseleave="isPlaying && (showControls = false)"
+        @mouseleave="isFullscreen && isPlaying && (showControls = false)"
         @click.self="togglePlay"
     >
         <!-- Video Element -->
@@ -361,12 +362,12 @@ watch(() => props.src, () => {
             </div>
         </div>
 
-        <!-- Controls -->
+        <!-- Controls - Always visible, only hide in fullscreen when playing -->
         <div
             :class="[
                 'absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 pt-16',
-                showControls || !isPlaying ? 'opacity-100' : 'opacity-0',
-                showControls || !isPlaying ? 'pointer-events-auto' : 'pointer-events-none'
+                (!isFullscreen || showControls || !isPlaying) ? 'opacity-100' : 'opacity-0',
+                (!isFullscreen || showControls || !isPlaying) ? 'pointer-events-auto' : 'pointer-events-none'
             ]"
         >
             <!-- Progress Bar -->

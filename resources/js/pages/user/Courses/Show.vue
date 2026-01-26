@@ -223,12 +223,13 @@ document.addEventListener('keydown', (e) => {
         <Teleport to="body">
             <div
                 v-if="showVideoModal"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-black"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 md:p-8"
             >
-                <!-- Modal Content -->
+                <!-- Modal Content - Popup style with max dimensions -->
                 <div
                     ref="modalRef"
-                    class="relative w-full h-full flex flex-col"
+                    class="relative w-full max-w-5xl bg-gray-900 rounded-xl overflow-hidden shadow-2xl flex flex-col"
+                    style="max-height: 90vh;"
                 >
                     <!-- Header -->
                     <div class="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800">
@@ -247,7 +248,7 @@ document.addEventListener('keydown', (e) => {
                     </div>
 
                     <!-- Video Player -->
-                    <div class="flex-1 bg-black relative">
+                    <div class="aspect-video bg-black relative">
                         <!-- Loading -->
                         <div v-if="videoLoading" class="absolute inset-0 flex items-center justify-center">
                             <Loader2 class="h-12 w-12 text-red-500 animate-spin" />
