@@ -64,6 +64,18 @@ class VideoService
      */
     public function getSignedUrl(Video $video, int $expiresInMinutes = 120): string
     {
+        // Get file extension to determine content type
+        $extension = strtolower(pathinfo($video->video_path, PATHINFO_EXTENSION));
+        $contentType = match ($extension) {
+            'mp4' => 'video/mp4',
+            'webm' => 'video/webm',
+            'mov' => 'video/quicktime',
+            'avi' => 'video/x-msvideo',
+            'mkv' => 'video/x-matroska',
+            'm4v' => 'video/x-m4v',
+            default => 'video/mp4',
+        };
+
         $client = new S3Client([
             'region' => 'auto',
             'version' => 'latest',
@@ -78,6 +90,8 @@ class VideoService
         $command = $client->getCommand('GetObject', [
             'Bucket' => config('filesystems.disks.r2.bucket'),
             'Key' => $video->video_path,
+            'ResponseContentType' => $contentType,
+            'ResponseContentDisposition' => 'inline',
         ]);
 
         $presignedRequest = $client->createPresignedRequest($command, "+{$expiresInMinutes} minutes");
