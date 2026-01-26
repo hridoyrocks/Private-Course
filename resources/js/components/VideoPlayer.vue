@@ -24,7 +24,7 @@ const props = withDefaults(defineProps<Props>(), {
     autoplay: true
 });
 
-const emit = defineEmits(['ended']);
+const emit = defineEmits(['ended', 'error']);
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -35,6 +35,8 @@ const isPlaying = ref(false);
 const isMuted = ref(false);
 const isFullscreen = ref(false);
 const isLoading = ref(true);
+const hasError = ref(false);
+const errorMessage = ref('');
 const showControls = ref(true);
 const currentTime = ref(0);
 const duration = ref(0);
@@ -158,6 +160,42 @@ const handleWaiting = () => {
 
 const handleCanPlay = () => {
     isLoading.value = false;
+    hasError.value = false;
+};
+
+const handleError = (e: Event) => {
+    isLoading.value = false;
+    hasError.value = true;
+    const video = e.target as HTMLVideoElement;
+    const error = video.error;
+    if (error) {
+        switch (error.code) {
+            case MediaError.MEDIA_ERR_ABORTED:
+                errorMessage.value = 'Video loading was aborted';
+                break;
+            case MediaError.MEDIA_ERR_NETWORK:
+                errorMessage.value = 'Network error occurred';
+                break;
+            case MediaError.MEDIA_ERR_DECODE:
+                errorMessage.value = 'Video decoding error';
+                break;
+            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                errorMessage.value = 'Video format not supported';
+                break;
+            default:
+                errorMessage.value = 'An error occurred';
+        }
+    }
+    emit('error', errorMessage.value);
+};
+
+const retryVideo = () => {
+    if (videoRef.value) {
+        hasError.value = false;
+        isLoading.value = true;
+        videoRef.value.load();
+        videoRef.value.play().catch(() => {});
+    }
 };
 
 const showControlsTemporarily = () => {
@@ -244,6 +282,7 @@ onUnmounted(() => {
 // Watch for src changes
 watch(() => props.src, () => {
     isLoading.value = true;
+    hasError.value = false;
     currentTime.value = 0;
     duration.value = 0;
 });
@@ -264,7 +303,6 @@ watch(() => props.src, () => {
             class="w-full h-full"
             preload="auto"
             playsinline
-            crossorigin="anonymous"
             @timeupdate="handleTimeUpdate"
             @loadedmetadata="handleLoadedMetadata"
             @progress="handleProgress"
@@ -273,21 +311,45 @@ watch(() => props.src, () => {
             @ended="handleEnded"
             @waiting="handleWaiting"
             @canplay="handleCanPlay"
-            @canplaythrough="isLoading = false"
+            @error="handleError"
             @contextmenu.prevent
         />
 
         <!-- Loading Overlay -->
         <div
-            v-if="isLoading"
-            class="absolute inset-0 flex items-center justify-center bg-black/20"
+            v-if="isLoading && !hasError"
+            class="absolute inset-0 flex items-center justify-center bg-black/50"
         >
-            <Loader2 class="h-12 w-12 text-white animate-spin" />
+            <div class="text-center">
+                <Loader2 class="h-12 w-12 text-red-500 animate-spin mx-auto" />
+                <p class="text-white text-sm mt-3">Loading video...</p>
+            </div>
+        </div>
+
+        <!-- Error Overlay -->
+        <div
+            v-if="hasError"
+            class="absolute inset-0 flex items-center justify-center bg-black/80"
+        >
+            <div class="text-center px-4">
+                <div class="w-16 h-16 rounded-full bg-red-600/20 flex items-center justify-center mx-auto mb-4">
+                    <svg class="h-8 w-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <p class="text-red-400 mb-4">{{ errorMessage }}</p>
+                <button
+                    @click="retryVideo"
+                    class="bg-red-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-red-700 transition-colors"
+                >
+                    Try Again
+                </button>
+            </div>
         </div>
 
         <!-- Play/Pause Overlay (Center) -->
         <div
-            v-if="!isLoading"
+            v-if="!isLoading && !hasError"
             class="absolute inset-0 flex items-center justify-center cursor-pointer"
             @click="togglePlay"
         >
