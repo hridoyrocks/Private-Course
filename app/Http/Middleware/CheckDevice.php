@@ -25,29 +25,23 @@ class CheckDevice
             return $next($request);
         }
 
-        // First try to validate existing device
+        // STRICT: Only allow if device is already registered - no auto-registration here
+        // Device must be registered during login only
         if ($this->deviceService->validateDevice($user, $request)) {
             return $next($request);
         }
 
-        // If device not found, try to register it (for first-time or new devices)
-        $device = $this->deviceService->registerDevice($user, $request);
-
-        if ($device) {
-            return $next($request);
-        }
-
-        // Device limit reached
+        // Device not registered - reject access
         if ($request->wantsJson()) {
             return response()->json([
-                'message' => 'আপনার ডিভাইস লিমিট শেষ। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।',
-                'error' => 'device_limit_reached'
+                'message' => 'এই ডিভাইস থেকে অ্যাক্সেস অনুমোদিত নয়। অনুগ্রহ করে আবার লগইন করুন।',
+                'error' => 'device_not_registered'
             ], 403);
         }
 
         auth()->logout();
         return redirect()->route('login')->withErrors([
-            'email' => 'আপনার ডিভাইস লিমিট শেষ। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।'
+            'email' => 'এই ডিভাইস থেকে অ্যাক্সেস অনুমোদিত নয়। অনুগ্রহ করে আবার লগইন করুন।'
         ]);
     }
 }
