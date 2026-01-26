@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UserDashboardLayout from '@/layouts/user/UserDashboardLayout.vue';
+import VideoPlayer from '@/components/VideoPlayer.vue';
 import { Head } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import {
@@ -9,10 +10,9 @@ import {
     X,
     ChevronLeft,
     ChevronRight,
-    Maximize,
-    Minimize,
     Video,
-    Lock
+    Lock,
+    Loader2
 } from 'lucide-vue-next';
 
 interface VideoItem {
@@ -44,8 +44,6 @@ const currentVideo = ref<VideoItem | null>(null);
 const videoUrl = ref<string | null>(null);
 const videoLoading = ref(false);
 const videoError = ref<string | null>(null);
-const isFullscreen = ref(false);
-const videoRef = ref<HTMLVideoElement | null>(null);
 const modalRef = ref<HTMLDivElement | null>(null);
 
 const currentIndex = computed(() => {
@@ -102,7 +100,6 @@ const closeVideo = () => {
     currentVideo.value = null;
     videoUrl.value = null;
     videoError.value = null;
-    isFullscreen.value = false;
     if (document.fullscreenElement) {
         document.exitFullscreen();
     }
@@ -120,46 +117,16 @@ const playPrev = () => {
     }
 };
 
-const toggleFullscreen = async () => {
-    if (!modalRef.value) return;
-
-    if (!document.fullscreenElement) {
-        await modalRef.value.requestFullscreen();
-        isFullscreen.value = true;
-    } else {
-        await document.exitFullscreen();
-        isFullscreen.value = false;
-    }
-};
-
-// Handle fullscreen change
-document.addEventListener('fullscreenchange', () => {
-    isFullscreen.value = !!document.fullscreenElement;
-});
-
-// Prevent right-click on video
-document.addEventListener('contextmenu', (e) => {
-    if ((e.target as HTMLElement)?.closest('video')) {
-        e.preventDefault();
-    }
-});
-
-// Keyboard shortcuts
+// Keyboard shortcut for closing modal
 document.addEventListener('keydown', (e) => {
     if (!showVideoModal.value) return;
 
-    if (e.key === 'Escape') {
-        if (isFullscreen.value) {
-            document.exitFullscreen();
-        } else {
-            closeVideo();
-        }
-    } else if (e.key === 'ArrowRight' && nextVideo.value) {
-        playNext();
-    } else if (e.key === 'ArrowLeft' && prevVideo.value) {
-        playPrev();
-    } else if (e.key === 'f' || e.key === 'F') {
-        toggleFullscreen();
+    if (e.key === 'Escape' && !document.fullscreenElement) {
+        closeVideo();
+    } else if (e.key === 'n' || e.key === 'N') {
+        if (nextVideo.value) playNext();
+    } else if (e.key === 'p' || e.key === 'P') {
+        if (prevVideo.value) playPrev();
     }
 });
 </script>
@@ -256,56 +223,34 @@ document.addEventListener('keydown', (e) => {
         <Teleport to="body">
             <div
                 v-if="showVideoModal"
-                class="fixed inset-0 z-50 flex items-center justify-center"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black"
             >
-                <!-- Backdrop -->
-                <div
-                    @click="closeVideo"
-                    class="absolute inset-0 bg-black/90"
-                ></div>
-
                 <!-- Modal Content -->
                 <div
                     ref="modalRef"
-                    :class="[
-                        'relative w-full bg-black flex flex-col',
-                        isFullscreen ? 'h-full' : 'max-w-5xl mx-4 rounded-2xl overflow-hidden'
-                    ]"
+                    class="relative w-full h-full flex flex-col"
                 >
                     <!-- Header -->
-                    <div :class="[
-                        'flex items-center justify-between px-4 py-3 bg-gray-900',
-                        isFullscreen ? 'absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent' : ''
-                    ]">
+                    <div class="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800">
                         <div class="flex-1 min-w-0 pr-4">
                             <p class="text-white font-medium truncate">{{ currentVideo?.title }}</p>
                             <p class="text-gray-400 text-sm">
                                 {{ course.title }} • Video {{ currentIndex + 1 }} of {{ course.active_videos.length }}
                             </p>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <button
-                                @click="toggleFullscreen"
-                                class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-                                :title="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
-                            >
-                                <Minimize v-if="isFullscreen" class="h-5 w-5" />
-                                <Maximize v-else class="h-5 w-5" />
-                            </button>
-                            <button
-                                @click="closeVideo"
-                                class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-                            >
-                                <X class="h-5 w-5" />
-                            </button>
-                        </div>
+                        <button
+                            @click="closeVideo"
+                            class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                        >
+                            <X class="h-5 w-5" />
+                        </button>
                     </div>
 
                     <!-- Video Player -->
-                    <div :class="['relative bg-black flex-1', isFullscreen ? '' : 'aspect-video']">
+                    <div class="flex-1 bg-black relative">
                         <!-- Loading -->
                         <div v-if="videoLoading" class="absolute inset-0 flex items-center justify-center">
-                            <div class="animate-spin rounded-full h-12 w-12 border-4 border-gray-600 border-t-red-500"></div>
+                            <Loader2 class="h-12 w-12 text-red-500 animate-spin" />
                         </div>
 
                         <!-- Error -->
@@ -322,44 +267,33 @@ document.addEventListener('keydown', (e) => {
                             </div>
                         </div>
 
-                        <!-- Video -->
-                        <video
+                        <!-- Custom Video Player -->
+                        <VideoPlayer
                             v-else-if="videoUrl"
-                            ref="videoRef"
                             :src="videoUrl"
-                            class="w-full h-full"
-                            controls
-                            autoplay
-                            controlsList="nodownload"
-                            disablePictureInPicture
-                            @contextmenu.prevent
-                            @ended="nextVideo && playNext()"
-                        >
-                            Your browser does not support the video tag.
-                        </video>
+                            :autoplay="true"
+                            @ended="nextVideo ? playNext() : closeVideo()"
+                        />
                     </div>
 
                     <!-- Navigation Footer -->
-                    <div :class="[
-                        'flex items-center justify-between px-4 py-3 bg-gray-900',
-                        isFullscreen ? 'absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 to-transparent' : ''
-                    ]">
+                    <div class="flex items-center justify-between px-4 py-3 bg-gray-900 border-t border-gray-800">
                         <button
                             v-if="prevVideo"
                             @click="playPrev"
                             class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 text-sm transition-colors"
                         >
                             <ChevronLeft class="h-4 w-4" />
-                            <span class="hidden sm:inline">Previous</span>
+                            <span class="hidden sm:inline">Previous (P)</span>
                         </button>
                         <div v-else></div>
 
-                        <div class="flex items-center gap-1 text-gray-500 text-sm">
+                        <div class="flex items-center gap-1.5">
                             <span
                                 v-for="(_, i) in course.active_videos"
                                 :key="i"
                                 :class="[
-                                    'w-2 h-2 rounded-full',
+                                    'w-2 h-2 rounded-full transition-colors',
                                     i === currentIndex ? 'bg-red-500' : 'bg-gray-600'
                                 ]"
                             ></span>
@@ -370,7 +304,7 @@ document.addEventListener('keydown', (e) => {
                             @click="playNext"
                             class="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 text-sm transition-colors"
                         >
-                            <span class="hidden sm:inline">Next</span>
+                            <span class="hidden sm:inline">Next (N)</span>
                             <ChevronRight class="h-4 w-4" />
                         </button>
                         <button
@@ -386,10 +320,3 @@ document.addEventListener('keydown', (e) => {
         </Teleport>
     </UserDashboardLayout>
 </template>
-
-<style scoped>
-video::-webkit-media-controls-download-button,
-video::-webkit-media-controls-overflow-button {
-    display: none !important;
-}
-</style>
