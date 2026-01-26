@@ -11,9 +11,12 @@ class DeviceService
     public function generateDeviceHash(Request $request): string
     {
         $userAgent = $request->userAgent() ?? 'unknown';
-        $ip = $request->ip() ?? 'unknown';
+        // Don't use IP in hash - it changes frequently (mobile networks, VPN, etc.)
+        // Use only browser fingerprint for device identification
+        $acceptLanguage = $request->header('Accept-Language', '');
+        $acceptEncoding = $request->header('Accept-Encoding', '');
 
-        return hash('sha256', $userAgent . $ip . $request->header('Accept-Language', ''));
+        return hash('sha256', $userAgent . $acceptLanguage . $acceptEncoding);
     }
 
     public function getDeviceName(Request $request): string

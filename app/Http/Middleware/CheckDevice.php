@@ -25,18 +25,29 @@ class CheckDevice
             return $next($request);
         }
 
-        if (!$this->deviceService->validateDevice($user, $request)) {
-            if ($request->wantsJson()) {
-                return response()->json([
-                    'message' => 'ডিভাইস যাচাই ব্যর্থ। অনুগ্রহ করে আবার লগইন করুন।',
-                    'error' => 'device_invalid'
-                ], 403);
-            }
-
-            auth()->logout();
-            return redirect()->route('login')->with('error', 'ডিভাইস যাচাই ব্যর্থ। অনুগ্রহ করে আবার লগইন করুন।');
+        // First try to validate existing device
+        if ($this->deviceService->validateDevice($user, $request)) {
+            return $next($request);
         }
 
-        return $next($request);
+        // If device not found, try to register it (for first-time or new devices)
+        $device = $this->deviceService->registerDevice($user, $request);
+
+        if ($device) {
+            return $next($request);
+        }
+
+        // Device limit reached
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => 'আপনার ডিভাইস লিমিট শেষ। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।',
+                'error' => 'device_limit_reached'
+            ], 403);
+        }
+
+        auth()->logout();
+        return redirect()->route('login')->withErrors([
+            'email' => 'আপনার ডিভাইস লিমিট শেষ। অনুগ্রহ করে অ্যাডমিনের সাথে যোগাযোগ করুন।'
+        ]);
     }
 }
