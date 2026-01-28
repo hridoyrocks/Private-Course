@@ -14,11 +14,12 @@ class DeviceService
         $acceptLanguage = $request->header('Accept-Language', '');
         $acceptEncoding = $request->header('Accept-Encoding', '');
 
-        // Get or create a unique device token stored in session
-        $deviceToken = $request->session()->get('device_token');
+        // Use cookie-based device token that survives logout
+        $deviceToken = $request->cookie('device_token');
         if (!$deviceToken) {
             $deviceToken = bin2hex(random_bytes(32));
-            $request->session()->put('device_token', $deviceToken);
+            // Store in cookie for 2 years - survives logout/session destroy
+            cookie()->queue(cookie('device_token', $deviceToken, 60 * 24 * 365 * 2, '/', null, false, true));
         }
 
         return hash('sha256', $userAgent . $acceptLanguage . $acceptEncoding . $deviceToken);
