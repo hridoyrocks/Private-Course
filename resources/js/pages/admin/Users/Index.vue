@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AdminLayout from '@/layouts/admin/AdminLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Plus, Pencil, Trash2, Monitor, X } from 'lucide-vue-next';
+import { Plus, Pencil, Trash2, Monitor, X, RotateCcw } from 'lucide-vue-next';
 import { ref } from 'vue';
 
 interface User {
@@ -52,6 +52,12 @@ const createUser = () => {
             closeCreateModal();
         },
     });
+};
+
+const resetDevices = (user: User) => {
+    if (confirm(`"${user.name}" এর সব ডিভাইস রিসেট করতে চান?`)) {
+        router.delete(`/admin/users/${user.id}/devices`);
+    }
 };
 
 const deleteUser = (user: User) => {
@@ -113,10 +119,20 @@ const formatDate = (date: string) => {
                                 <td class="px-6 py-4 font-medium">{{ user.name }}</td>
                                 <td class="px-6 py-4 text-muted-foreground">{{ user.email }}</td>
                                 <td class="px-6 py-4">
-                                    <span class="inline-flex items-center gap-1.5 text-sm">
-                                        <Monitor class="h-4 w-4 text-muted-foreground" />
-                                        {{ user.devices_count }}/{{ user.max_devices }}
-                                    </span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="inline-flex items-center gap-1.5 text-sm">
+                                            <Monitor class="h-4 w-4 text-muted-foreground" />
+                                            {{ user.devices_count }}/{{ user.max_devices }}
+                                        </span>
+                                        <button
+                                            v-if="user.devices_count > 0"
+                                            @click="resetDevices(user)"
+                                            class="rounded-md p-1 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                                            title="Reset all devices"
+                                        >
+                                            <RotateCcw class="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4">{{ user.courses_count }}</td>
                                 <td class="px-6 py-4">
